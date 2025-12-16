@@ -2,28 +2,53 @@ package main
 
 import (
 	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
+	"math/big"
 	"net/http"
 )
 
 // DB Mock
-var mockDB = map[string]string{
-	"server_123": "cle_secrete_super_secure_456",
+var mockDB = make(map[string]string)
+
+func generateSecret() string {
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	b := make([]byte, 32)
+	for i := range b {
+		n, _ := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
+		b[i] = charset[n.Int64()]
+	}
+	return string(b)
 }
 
 func main() {
 	// Endpoint d'enregistrement
 	http.HandleFunc("/api/register", func(w http.ResponseWriter, r *http.Request) {
-		// Simule une création de compte réussie
-		log.Println("📝 Nouvelle machine enregistrée !")
+		body, _ := io.ReadAll(r.Body)
+		var payload map[string]interface{}
+		if err := json.Unmarshal(body, &payload); err != nil {
+			http.Error(w, "Invalid JSON", 400)
+			return
+		}
+		hostname, ok1 := payload["hostname"].(string)
+		username, ok2 := payload["username"].(string)
+		ip, ok3 := payload["ip"].(string)
+		if !ok1 || !ok2 || !ok3 {
+			http.Error(w, "Missing fields", 400)
+			return
+		}
+		serverID := fmt.Sprintf("server_%s_%s_%s", hostname, username, ip)
+		secretKey := generateSecret()
+		mockDB[serverID] = secretKey
+		log.Printf("📝 Nouvelle machine enregistrée: %s (User: %s, IP: %s, ID: %s)", hostname, username, ip, serverID)
 		json.NewEncoder(w).Encode(map[string]string{
-			"server_id":  "server_123",
-			"secret_key": "cle_secrete_super_secure_456",
+			"server_id":  serverID,
+			"secret_key": secretKey,
 		})
 	})
 
