@@ -12,6 +12,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/user"
 	"strings"
 	"time"
 
@@ -42,6 +43,8 @@ type RegisterPayload struct {
 	Hostname     string `json:"hostname"`
 	OS           string `json:"os"`
 	Arch         string `json:"arch"`
+	Username     string `json:"username"`
+	IP           string `json:"ip"`
 }
 
 // FullMetricPayload : La structure complète envoyée au serveur
@@ -102,6 +105,19 @@ type NetInfo struct {
 type Sensor struct {
 	Key         string  `json:"key"`
 	Temperature float64 `json:"temperature"`
+}
+
+// --- FONCTIONS UTILITAIRES ---
+
+func getPublicIP() string {
+	resp, err := http.Get("https://api.ipify.org")
+	if err != nil {
+		log.Println("Erreur récupération IP publique:", err)
+		return "unknown"
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	return strings.TrimSpace(string(body))
 }
 
 // --- FONCTIONS DE COLLECTE ---
@@ -193,11 +209,15 @@ func signPayload(data []byte, secret string) string {
 
 func registerAgent(token string) (*AgentConfig, error) {
 	hostInfo, _ := host.Info()
+	currentUser, _ := user.Current()
+	ip := getPublicIP()
 	payload := RegisterPayload{
 		InstallToken: token,
 		Hostname:     hostInfo.Hostname,
 		OS:           hostInfo.Platform,
 		Arch:         hostInfo.KernelArch,
+		Username:     currentUser.Username,
+		IP:           ip,
 	}
 	jsonData, _ := json.Marshal(payload)
 	resp, err := http.Post(API_URL+"/api/register", "application/json", bytes.NewBuffer(jsonData))
