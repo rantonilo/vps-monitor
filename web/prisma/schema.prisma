@@ -1,0 +1,41 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  password      String // Hashed
+  installToken  String   @unique // Token used to link agents
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  servers       Server[]
+}
+
+model Server {
+  id            String   @id // Custom ID: server_hostname_username_ip
+  secretKey     String   // HMAC secret
+  hostname      String
+  username      String
+  ip            String
+  lastSeen      DateTime @default(now())
+  
+  // Storing metrics as JSON string since structure is complex and volatile
+  // In a real PG DB we'd use Json type, in SQLite string is safest or unsupported depending on version, 
+  // but Prisma handles String nicely. We will JSON.stringify/parse in app logic.
+  lastMetrics   String? 
+  
+  ownerId       String
+  owner         User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
